@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import { LoginScreen } from "./components/LoginScreen";
@@ -6,13 +7,11 @@ import { HomeScreen } from "./components/HomeScreen";
 import { CreateIncidentScreen } from "./components/CreateIncidentScreen";
 
 import { PendingReportsScreen } from "./components/PendingReportsScreen";
-import CommandDashboardRoute from "../routes/CommandDashboardRoute";
 
 import { useIncidentData } from "../providers/IncidentProvider";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { usePWAInstallPrompt } from "./hooks/usePWAInstallPrompt";
 import { useLiveQuery } from "dexie-react-hooks";
-import { storage } from "./utils/storage";
 import { db, type IncidentReport } from "../db/db";
 import { getCurrentUser, getUserProfile, logout } from "./services/authService";
 
@@ -28,7 +27,7 @@ import {
   XCircle,
 } from "lucide-react";
 
-type Screen = "login" | "home" | "create" | "reports" | "dashboard";
+type Screen = "login" | "home" | "create" | "reports";
 
 const MAROON = "#800020";
 const WHITE = "#FFFFFF";
@@ -85,17 +84,12 @@ function toastMaroonLoading(
 export default function EmergencyResponseRoute() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("login");
   const [installBannerDismissed, setInstallBannerDismissed] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(storage.getAuthToken()));
-
-  const syncPendingCountRef = useRef(0);
-  const syncToastIdRef = useRef<string | number | null>(null);
-
-  const { canInstall, promptInstall, dismissPrompt } = usePWAInstallPrompt();
-  const shouldShowInstallBanner = canInstall && !installBannerDismissed;
 
   const reports = useLiveQuery(() => db.reports.toArray()) ?? [];
   const isOnline = useOnlineStatus();
   const { registerFieldIncident } = useIncidentData();
+  const { canInstall: canInstallPWA, promptInstall, dismissPrompt } = usePWAInstallPrompt();
+  const shouldShowInstallBanner = canInstallPWA && !installBannerDismissed;
 
   // Icons pre-built (maroon)
   const icons = useMemo(
@@ -115,13 +109,18 @@ export default function EmergencyResponseRoute() {
   );
 
   useEffect(() => {
-    // Check if user is already authenticated
-    const token = storage.getAuthToken();
-    if (token) {
-      setIsAuthenticated(true);
-      setCurrentScreen("home");
+    if (isAuthenticated) {
+      // Only redirect if we are currently on the login screen
+      if (currentScreen === "login") {
+        setCurrentScreen(isAdmin ? "dashboard" : "home");
+      }
+    } else {
+      setCurrentScreen("login");
     }
-  }, []);
+  }, [isAuthenticated, isAdmin, currentScreen]);
+
+  // NOTE: Reports are now automatically synced to IncidentProvider via its internal useLiveQuery.
+  // We don't need to manually register them here anymore.
 
   useEffect(() => {
     // Auto-sync when coming online
@@ -159,16 +158,11 @@ export default function EmergencyResponseRoute() {
   };
 
   const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (error) {
-      console.error("Logout failed", error);
-    }
+    await logout();
     storage.clearAuthToken();
     storage.clearUser();
-    setIsAuthenticated(false);
-    setCurrentScreen("login");
 
+    // State update handles via useEffect
     toastMaroon("Logged out", { icon: icons.logout });
   };
 
@@ -207,7 +201,7 @@ export default function EmergencyResponseRoute() {
     setCurrentScreen("home");
 
     if (isOnline) {
-      setTimeout(() => syncSingleReport(newReport.id), 1000);
+      sync();
     }
   };
 
@@ -265,22 +259,26 @@ export default function EmergencyResponseRoute() {
     const report = reports.find((r) => r.id === reportId);
     if (!report || !isOnline) return;
 
-    beginSyncPopup(1);
+    // Update status to syncing
     await db.reports.update(reportId, { status: "syncing" });
 
+    // Simulate API call
     setTimeout(async () => {
-      const success = Math.random() > 0.1;
+      const success = Math.random() > 0.1; // 90% success rate
 
       if (success) {
         const syncedReport: IncidentReport = { ...report, status: "synced" };
+
+        // React UI updates automatically via useLiveQuery
         registerFieldIncident(syncedReport, storage.getUser()?.name);
+
+        // ✅ Report saved successfully / synced successfully
         toastMaroon("Report synced successfully", { icon: icons.success });
       } else {
         await db.reports.update(reportId, { status: "failed" });
+
         toastMaroon("Sync failed - will retry later", { icon: icons.error });
       }
-
-      finishOneSyncPopup();
     }, 2000);
   };
 
@@ -299,46 +297,20 @@ export default function EmergencyResponseRoute() {
       return;
     }
 
-    // ✅ One popup for the whole batch
-    beginSyncPopup(unsyncedReports.length);
-
-    // Per-item sync WITHOUT beginSyncPopup(1) (prevents double counting)
+    // Sync each report
     for (const report of unsyncedReports) {
-      const reportId = report.id;
-
-      const current = reports.find((r) => r.id === reportId);
-      if (!current) {
-        finishOneSyncPopup();
-        continue;
-      }
-
-      await db.reports.update(reportId, { status: "syncing" });
-
-      setTimeout(async () => {
-        const success = Math.random() > 0.1;
-
-        if (success) {
-          const syncedReport: IncidentReport = { ...current, status: "synced" };
-          registerFieldIncident(syncedReport, storage.getUser()?.name);
-          toastMaroon("Report synced successfully", { icon: icons.success });
-        } else {
-          await db.reports.update(reportId, { status: "failed" });
-          toastMaroon("Sync failed - will retry later", { icon: icons.error });
-        }
-
-        finishOneSyncPopup();
-      }, 2000);
+      syncSingleReport(report.id);
     }
   };
 
-  const handleRetrySync = (reportId: string) => {
+  const handleRetrySync = async () => {
     if (!isOnline) {
       toastMaroon("Cannot retry while offline", { icon: icons.offline });
       return;
     }
 
     toastMaroon("Retrying sync...", { icon: icons.retry });
-    syncSingleReport(reportId);
+    await sync();
   };
 
   const pendingCount = reports.filter((r) => r.status !== "synced").length;
@@ -428,11 +400,9 @@ export default function EmergencyResponseRoute() {
           reports={reports}
           onBack={() => setCurrentScreen("home")}
           onSync={syncReports}
-          onRetry={handleRetrySync}
+          onRetry={() => handleRetrySync()}
         />
       )}
-
-      {currentScreen === "dashboard" && <CommandDashboardRoute />}
     </>
   );
 }
