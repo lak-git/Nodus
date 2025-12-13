@@ -14,7 +14,7 @@ import {
 } from "./ui/select";
 
 import { ConnectivityBanner } from "./ConnectivityBanner";
-import type { IncidentReport } from "../utils/storage";
+import type { IncidentReport } from "../../db/db";
 
 interface CreateIncidentScreenProps {
   isOnline: boolean;
