@@ -7,7 +7,9 @@ import { CreateIncidentScreen } from "./components/CreateIncidentScreen";
 import { PendingReportsScreen } from "./components/PendingReportsScreen";
 
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
-import { storage, type IncidentReport } from "./utils/storage";
+import { useLiveQuery } from "dexie-react-hooks";
+import { storage } from "./utils/storage";
+import { db, type IncidentReport } from "../db/db";
 
 import {
   CheckCircle2,
@@ -53,7 +55,8 @@ function toastMaroon(
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("login");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [reports, setReports] = useState<IncidentReport[]>([]);
+  
+  const reports = useLiveQuery(() => db.reports.toArray()) ?? [];
   const isOnline = useOnlineStatus();
 
   // Icons pre-built (maroon)
@@ -79,10 +82,6 @@ export default function App() {
       setIsAuthenticated(true);
       setCurrentScreen("home");
     }
-
-    // Load reports from localStorage
-    const savedReports = storage.getReports();
-    setReports(savedReports);
   }, []);
 
   useEffect(() => {
@@ -116,7 +115,7 @@ export default function App() {
     toastMaroon("Logged in successfully", { icon: icons.login });
   };
 
-  const handleSaveIncident = (
+  const handleSaveIncident = async (
     reportData: Omit<IncidentReport, "id" | "createdAt" | "status">,
   ) => {
     const newReport: IncidentReport = {
@@ -126,8 +125,7 @@ export default function App() {
       status: "local",
     };
 
-    storage.saveReport(newReport);
-    setReports((prev) => [...prev, newReport]);
+    await db.reports.add(newReport);
 
     // ✅ Report saved locally (white bg, maroon text + maroon icon)
     toastMaroon("Report saved locally", { icon: icons.saved });
@@ -145,28 +143,19 @@ export default function App() {
     if (!report || !isOnline) return;
 
     // Update status to syncing
-    storage.updateReport(reportId, { status: "syncing" });
-    setReports((prev) =>
-      prev.map((r) => (r.id === reportId ? { ...r, status: "syncing" } : r)),
-    );
+    await db.reports.update(reportId, { status: "syncing" });
 
     // Simulate API call
-    setTimeout(() => {
+    setTimeout(async () => {
       const success = Math.random() > 0.1; // 90% success rate
 
       if (success) {
-        storage.updateReport(reportId, { status: "synced" });
-        setReports((prev) =>
-          prev.map((r) => (r.id === reportId ? { ...r, status: "synced" } : r)),
-        );
+        await db.reports.update(reportId, { status: "synced" });
 
         // ✅ Report saved successfully / synced successfully
         toastMaroon("Report synced successfully", { icon: icons.success });
       } else {
-        storage.updateReport(reportId, { status: "failed" });
-        setReports((prev) =>
-          prev.map((r) => (r.id === reportId ? { ...r, status: "failed" } : r)),
-        );
+        await db.reports.update(reportId, { status: "failed" });
 
         toastMaroon("Sync failed - will retry later", { icon: icons.error });
       }
