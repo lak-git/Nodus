@@ -6,7 +6,7 @@ import {
   Popup,
   useMap,
 } from "react-leaflet";
-import { Layers, CloudRain, Wind, Cloud, Thermometer, Map as MapIcon, Sun } from "lucide-react";
+import { Layers, CloudRain, Wind, Cloud, Thermometer, Map as MapIcon } from "lucide-react";
 import type { Incident } from "../../types/incident";
 import "leaflet/dist/leaflet.css";
 
@@ -81,9 +81,7 @@ export function MapView({ incidents, selectedIncident, onIncidentClick }: MapVie
         zoom={13}
         style={{ height: "100%", width: "100%" }}
         scrollWheelZoom={true}
-        zoomControl={false} // We can add custom zoom control if needed, but default is fine usually. 
-      // Actually, keeping default zoom control but maybe it overlaps? 
-      // Leaflet default zoom is top-left. Our panel is top-right. Safe.
+        zoomControl={false}
       >
         {/* Base Map Layer */}
         {activeBaseMap === 'osm' ? (
@@ -93,7 +91,7 @@ export function MapView({ incidents, selectedIncident, onIncidentClick }: MapVie
           />
         ) : (
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
             url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           />
         )}
@@ -103,7 +101,7 @@ export function MapView({ incidents, selectedIncident, onIncidentClick }: MapVie
           <TileLayer
             key="precip"
             url={`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${API_KEY}`}
-            opacity={0.8}
+            opacity={1.0}
             zIndex={10}
           />
         )}
@@ -111,7 +109,7 @@ export function MapView({ incidents, selectedIncident, onIncidentClick }: MapVie
           <TileLayer
             key="clouds"
             url={`https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=${API_KEY}`}
-            opacity={0.8}
+            opacity={1.0}
             zIndex={10}
           />
         )}
@@ -119,7 +117,7 @@ export function MapView({ incidents, selectedIncident, onIncidentClick }: MapVie
           <TileLayer
             key="temp"
             url={`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${API_KEY}`}
-            opacity={0.8}
+            opacity={1.0}
             zIndex={10}
           />
         )}
@@ -127,7 +125,7 @@ export function MapView({ incidents, selectedIncident, onIncidentClick }: MapVie
           <TileLayer
             key="wind"
             url={`https://tile.openweathermap.org/map/wind_new/{z}/{x}/{y}.png?appid=${API_KEY}`}
-            opacity={0.8}
+            opacity={1.0}
             zIndex={10}
           />
         )}
@@ -198,13 +196,10 @@ export function MapView({ incidents, selectedIncident, onIncidentClick }: MapVie
                       : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'
                     }`}
                 >
-                  <Sun className="w-4 h-4" />
+                  <div className="w-4 h-4 rounded-full border border-gray-400 bg-gray-100" />
                   Clean Light
                 </button>
               </div>
-              <p className="text-[10px] text-gray-400 mt-2 leading-tight">
-                "Clean Light" improves visibility of weather patterns.
-              </p>
             </div>
 
             <div className="h-px bg-gray-200 my-2" />
@@ -213,6 +208,18 @@ export function MapView({ incidents, selectedIncident, onIncidentClick }: MapVie
             <div>
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Live Weather</h3>
               <div className="space-y-2">
+                <button
+                  onClick={() => toggleWeatherLayer('wind')}
+                  className={`flex items-center justify-between w-full p-2.5 rounded-lg text-sm transition-all ${weatherLayers.wind ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
+                    }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Wind className={`w-4 h-4 ${weatherLayers.wind ? 'text-blue-500' : 'text-gray-400'}`} />
+                    <span>Wind Speed</span>
+                  </div>
+                  {weatherLayers.wind && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                </button>
+
                 <button
                   onClick={() => toggleWeatherLayer('precipitation')}
                   className={`flex items-center justify-between w-full p-2.5 rounded-lg text-sm transition-all ${weatherLayers.precipitation ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
@@ -248,18 +255,6 @@ export function MapView({ incidents, selectedIncident, onIncidentClick }: MapVie
                   </div>
                   {weatherLayers.temp && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
                 </button>
-
-                <button
-                  onClick={() => toggleWeatherLayer('wind')}
-                  className={`flex items-center justify-between w-full p-2.5 rounded-lg text-sm transition-all ${weatherLayers.wind ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
-                    }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Wind className={`w-4 h-4 ${weatherLayers.wind ? 'text-blue-500' : 'text-gray-400'}`} />
-                    <span>Wind Speed</span>
-                  </div>
-                  {weatherLayers.wind && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
-                </button>
               </div>
             </div>
           </div>
@@ -276,7 +271,7 @@ export function MapView({ incidents, selectedIncident, onIncidentClick }: MapVie
         </div>
       </div>
 
-      {/* Legend overlay */}
+      {/* Legend overlay (Bottom Right - Safe distance from custom dock) */}
       <div className="absolute bottom-6 right-4 z-[400] bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-3">
         <div className="text-xs text-[#6B4423] mb-2 font-medium">
           Severity Legend
