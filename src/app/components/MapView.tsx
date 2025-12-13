@@ -1,12 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   MapContainer,
   TileLayer,
   CircleMarker,
   Popup,
   useMap,
-  LayersControl,
 } from "react-leaflet";
+import { Layers, CloudRain, Wind, Cloud, Thermometer, Map as MapIcon, Sun } from "lucide-react";
 import type { Incident } from "../../types/incident";
 import "leaflet/dist/leaflet.css";
 
@@ -36,11 +36,25 @@ function MapUpdater({ selectedIncident }: { selectedIncident: Incident | null })
 export function MapView({ incidents, selectedIncident, onIncidentClick }: MapViewProps) {
   const API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
 
+  // Custom Layer State
+  const [activeBaseMap, setActiveBaseMap] = useState<'osm' | 'light'>('osm');
+  const [weatherLayers, setWeatherLayers] = useState({
+    precipitation: false,
+    clouds: false,
+    temp: false,
+    wind: false,
+  });
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   useEffect(() => {
     if (!API_KEY) {
       console.warn("VITE_OPENWEATHER_API_KEY is missing. Weather layers will not render properly.");
     }
   }, [API_KEY]);
+
+  const toggleWeatherLayer = (layer: keyof typeof weatherLayers) => {
+    setWeatherLayers(prev => ({ ...prev, [layer]: !prev[layer] }));
+  };
 
   const getSeverityStyles = (severity: number) => {
     switch (severity) {
@@ -67,44 +81,56 @@ export function MapView({ incidents, selectedIncident, onIncidentClick }: MapVie
         zoom={13}
         style={{ height: "100%", width: "100%" }}
         scrollWheelZoom={true}
+        zoomControl={false} // We can add custom zoom control if needed, but default is fine usually. 
+      // Actually, keeping default zoom control but maybe it overlaps? 
+      // Leaflet default zoom is top-left. Our panel is top-right. Safe.
       >
-        <LayersControl position="topright">
-          <LayersControl.BaseLayer checked name="Standard Map">
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-          </LayersControl.BaseLayer>
+        {/* Base Map Layer */}
+        {activeBaseMap === 'osm' ? (
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+        ) : (
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          />
+        )}
 
-          {API_KEY && (
-            <>
-              <LayersControl.Overlay name="Precipitation">
-                <TileLayer
-                  url={`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${API_KEY}`}
-                  attribution='&copy; <a href="https://openweathermap.org/">OpenWeatherMap</a>'
-                />
-              </LayersControl.Overlay>
-              <LayersControl.Overlay name="Clouds">
-                <TileLayer
-                  url={`https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=${API_KEY}`}
-                  attribution='&copy; <a href="https://openweathermap.org/">OpenWeatherMap</a>'
-                />
-              </LayersControl.Overlay>
-              <LayersControl.Overlay name="Temperature">
-                <TileLayer
-                  url={`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${API_KEY}`}
-                  attribution='&copy; <a href="https://openweathermap.org/">OpenWeatherMap</a>'
-                />
-              </LayersControl.Overlay>
-              <LayersControl.Overlay name="Wind Speed">
-                <TileLayer
-                  url={`https://tile.openweathermap.org/map/wind_new/{z}/{x}/{y}.png?appid=${API_KEY}`}
-                  attribution='&copy; <a href="https://openweathermap.org/">OpenWeatherMap</a>'
-                />
-              </LayersControl.Overlay>
-            </>
-          )}
-        </LayersControl>
+        {/* Weather Overlays */}
+        {API_KEY && weatherLayers.precipitation && (
+          <TileLayer
+            key="precip"
+            url={`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${API_KEY}`}
+            opacity={0.8}
+            zIndex={10}
+          />
+        )}
+        {API_KEY && weatherLayers.clouds && (
+          <TileLayer
+            key="clouds"
+            url={`https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=${API_KEY}`}
+            opacity={0.8}
+            zIndex={10}
+          />
+        )}
+        {API_KEY && weatherLayers.temp && (
+          <TileLayer
+            key="temp"
+            url={`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${API_KEY}`}
+            opacity={0.8}
+            zIndex={10}
+          />
+        )}
+        {API_KEY && weatherLayers.wind && (
+          <TileLayer
+            key="wind"
+            url={`https://tile.openweathermap.org/map/wind_new/{z}/{x}/{y}.png?appid=${API_KEY}`}
+            opacity={0.8}
+            zIndex={10}
+          />
+        )}
 
         <MapUpdater selectedIncident={selectedIncident} />
 
@@ -139,6 +165,107 @@ export function MapView({ incidents, selectedIncident, onIncidentClick }: MapVie
         })}
       </MapContainer>
 
+      {/* Custom Layers Floating Dock */}
+      <div className="absolute top-4 right-4 z-[1000] flex flex-col items-end gap-2">
+        <button
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          className="bg-white/90 backdrop-blur-sm p-3 rounded-xl shadow-lg hover:bg-white transition-colors border border-gray-100/50"
+          title="Map Layers & Weather"
+        >
+          <Layers className="w-6 h-6 text-gray-700" />
+        </button>
+
+        {isMenuOpen && (
+          <div className="bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-xl border border-gray-100 w-64 animate-in fade-in slide-in-from-top-2 duration-200">
+            {/* Section 1: Base Map */}
+            <div className="mb-4">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Base Style</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setActiveBaseMap('osm')}
+                  className={`flex flex-col items-center gap-2 p-2 rounded-lg border text-xs transition-all ${activeBaseMap === 'osm'
+                      ? 'bg-blue-50 border-blue-200 text-blue-700'
+                      : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'
+                    }`}
+                >
+                  <MapIcon className="w-4 h-4" />
+                  Standard
+                </button>
+                <button
+                  onClick={() => setActiveBaseMap('light')}
+                  className={`flex flex-col items-center gap-2 p-2 rounded-lg border text-xs transition-all ${activeBaseMap === 'light'
+                      ? 'bg-blue-50 border-blue-200 text-blue-700'
+                      : 'bg-gray-50 border-transparent text-gray-600 hover:bg-gray-100'
+                    }`}
+                >
+                  <Sun className="w-4 h-4" />
+                  Clean Light
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-400 mt-2 leading-tight">
+                "Clean Light" improves visibility of weather patterns.
+              </p>
+            </div>
+
+            <div className="h-px bg-gray-200 my-2" />
+
+            {/* Section 2: Weather Overlays */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Live Weather</h3>
+              <div className="space-y-2">
+                <button
+                  onClick={() => toggleWeatherLayer('precipitation')}
+                  className={`flex items-center justify-between w-full p-2.5 rounded-lg text-sm transition-all ${weatherLayers.precipitation ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
+                    }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <CloudRain className={`w-4 h-4 ${weatherLayers.precipitation ? 'text-blue-500' : 'text-gray-400'}`} />
+                    <span>Precipitation</span>
+                  </div>
+                  {weatherLayers.precipitation && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                </button>
+
+                <button
+                  onClick={() => toggleWeatherLayer('clouds')}
+                  className={`flex items-center justify-between w-full p-2.5 rounded-lg text-sm transition-all ${weatherLayers.clouds ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
+                    }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Cloud className={`w-4 h-4 ${weatherLayers.clouds ? 'text-blue-500' : 'text-gray-400'}`} />
+                    <span>Cloud Cover</span>
+                  </div>
+                  {weatherLayers.clouds && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                </button>
+
+                <button
+                  onClick={() => toggleWeatherLayer('temp')}
+                  className={`flex items-center justify-between w-full p-2.5 rounded-lg text-sm transition-all ${weatherLayers.temp ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
+                    }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Thermometer className={`w-4 h-4 ${weatherLayers.temp ? 'text-blue-500' : 'text-gray-400'}`} />
+                    <span>Temperature</span>
+                  </div>
+                  {weatherLayers.temp && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                </button>
+
+                <button
+                  onClick={() => toggleWeatherLayer('wind')}
+                  className={`flex items-center justify-between w-full p-2.5 rounded-lg text-sm transition-all ${weatherLayers.wind ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
+                    }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Wind className={`w-4 h-4 ${weatherLayers.wind ? 'text-blue-500' : 'text-gray-400'}`} />
+                    <span>Wind Speed</span>
+                  </div>
+                  {weatherLayers.wind && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Map title overlay (CENTER TOP) */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[400] bg-white/90 backdrop-blur-sm rounded-lg shadow-md px-4 py-2 pointer-events-none text-center">
         <div className="text-sm font-semibold text-[#800020]">
@@ -150,7 +277,7 @@ export function MapView({ incidents, selectedIncident, onIncidentClick }: MapVie
       </div>
 
       {/* Legend overlay */}
-      <div className="absolute top-4 right-16 z-[400] bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-3 pr-8">
+      <div className="absolute bottom-6 right-4 z-[400] bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-3">
         <div className="text-xs text-[#6B4423] mb-2 font-medium">
           Severity Legend
         </div>
@@ -169,9 +296,6 @@ export function MapView({ incidents, selectedIncident, onIncidentClick }: MapVie
           ))}
         </div>
       </div>
-
-      {/* Footer hint */}
-
     </div>
   );
 }
