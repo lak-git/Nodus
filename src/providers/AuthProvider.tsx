@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const isOnline = useOnlineStatus();
 
-    // Load from local storage on mount (Optimistic Hydration)
+    // Load from local storage on mount (Optimistic Hydration + Client Restoration)
     useEffect(() => {
         const loadSession = async () => {
             try {
@@ -85,17 +85,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 localStorage.setItem("sb-isAdmin", String(adminStatus));
 
                 setIsAuthenticated(true);
+            } else if (!currentSession && hasLocalSession) {
+                // Supabase client lost session (e.g. reload), but we have it locally.
+                // Attempt to restore it.
+                try {
+                    const parsedSession = JSON.parse(hasLocalSession);
+                    const { data, error } = await supabase.auth.setSession({
+                        access_token: parsedSession.access_token,
+                        refresh_token: parsedSession.refresh_token,
+                    });
+
+                    if (data.session) {
+                        setSession(data.session);
+                        setUser(data.session.user);
+                        setIsAuthenticated(true);
+                    } else {
+                        console.error("[AuthProvider] Failed to restore session from local storage. Error:", error);
+                        handleLogout("Restore failed (syncAuth)");
+                    }
+                } catch (e) {
+                    console.error("Error parsing local session", e);
+                    handleLogout("JSON parse error (syncAuth)");
+                }
             } else if (currentSession && !hasLocalSession) {
                 // Supabase thinks we are logged in, but our local app says we logged out.
                 // Force logout on Supabase to match local state.
                 console.warn("Supabase session exists but local session missing. Forcing logout.");
                 await supabase.auth.signOut();
-                handleLogout(); // Ensure local state is clean
+                handleLogout("Local session missing"); // Ensure local state is clean
             } else {
                 // Invalid session
                 if (isAuthenticated) {
-                    console.warn("Online but no Supabase session - clearing local session");
-                    handleLogout();
+                    console.error("[AuthProvider] Online but no Supabase session - clearing local session");
+                    handleLogout("No session syncAuth");
                 }
             }
         };
@@ -105,7 +127,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             if (session) {
-                setSession(session);
+                // Prevent redundant updates if session hasn't changed
+                setSession((prev) => {
+                    if (prev?.access_token === session.access_token) return prev;
+                    return session;
+                });
                 setUser(session.user);
 
                 // We can't easily get isAdmin here without another fetch
@@ -160,7 +186,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const handleLogout = async () => {
+    const handleLogout = async (reason = "User initiated") => {
+        console.error(`[AuthProvider] Logout triggered. Reason: ${reason}`);
         // Optimistic Logout: Clear local state immediately for better UX
         // This ensures the user is "logged out" in the UI even if the server call hangs or fails (e.g. offline)
         localStorage.removeItem("sb-session");
@@ -186,16 +213,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    // Memoize the context value to prevent unnecessary re-renders
+    const value = React.useMemo(() => ({
+        user,
+        session,
+        isAdmin,
+        isAuthenticated,
+        isLoading,
+        login: handleLogin,
+        logout: () => handleLogout("User action")
+    }), [user, session, isAdmin, isAuthenticated, isLoading, isOnline]); // Added isOnline as handleLogin uses it, though handleLogin is not memoized itself (it should be)
+
+    console.log(`[AuthProvider] Render. Auth: ${isAuthenticated}, Loading: ${isLoading}`);
+
     return (
-        <AuthContext.Provider value={{
-            user,
-            session,
-            isAdmin,
-            isAuthenticated,
-            isLoading,
-            login: handleLogin,
-            logout: handleLogout
-        }}>
+        <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
     );
