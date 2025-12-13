@@ -5,7 +5,6 @@ import { FilterControls } from "../app/components/FilterControls";
 import { MapView } from "../app/components/MapView";
 import { IncidentTable } from "../app/components/IncidentTable";
 import { IncidentDetailPanel } from "../app/components/IncidentDetailPanel";
-import { AccountApprovals } from "../app/components/accountApprovals";
 
 import type { Incident } from "../types/incident";
 import { useIncidentData } from "../providers/IncidentProvider";
@@ -94,11 +93,6 @@ export default function CommandDashboardRoute() {
             onIncidentClick={handleIncidentClick}
           />
         </div>
-      </div>
-
-      {/* ✅ SEPARATE ACCOUNT APPROVALS AREA */}
-      <div className="bg-white/90 rounded-lg shadow-md border border-[#E5D5C3] p-4">
-        <AccountApprovals />
       </div>
 
       <IncidentDetailPanel
