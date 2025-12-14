@@ -12,6 +12,7 @@ import { usePWAInstallPrompt } from "./hooks/usePWAInstallPrompt";
 import { useNearbyIncidents } from "./hooks/useNearbyIncidents";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type IncidentReport } from "../db/db";
+import { useSyncManager } from "./hooks/useSyncManager";
 // Auth is handled via AuthProvider - no direct service imports needed here
 import {
     CheckCircle2,
@@ -58,12 +59,13 @@ function toastBlack(
 
 // ✅ Loading toast (syncing)
 export default function EmergencyResponseRoute() {
-    const { incidents: activeIncidents, sync } = useIncidentData();
+    const { incidents: activeIncidents } = useIncidentData();
     const nearbyIncidents = useNearbyIncidents(activeIncidents);
     const [currentScreen, setCurrentScreen] = useState<Screen>("login");
     const [installBannerDismissed, setInstallBannerDismissed] = useState(false);
 
-    const { isAuthenticated, isAdmin, isLoading, logout: authLogout, login: authLogin } = useAuth();
+    const { isAuthenticated, isAdmin, isLoading, user, session, logout: authLogout, login: authLogin } = useAuth();
+    const { sync } = useSyncManager(session);
     const navigate = useNavigate();
 
 
@@ -151,14 +153,19 @@ export default function EmergencyResponseRoute() {
     };
 
     const handleSaveIncident = async (
-        reportData: Omit<IncidentReport, "id" | "createdAt" | "status">,
+        reportData: Omit<IncidentReport, "id" | "createdAt" | "status" | "userId">,
     ) => {
+        console.log("[EmergencyResponse] Saving incident. Current User:", user);
+
         const newReport: IncidentReport = {
             ...reportData,
             id: `report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             createdAt: new Date().toISOString(),
             status: "local",
+            userId: user?.id || "anonymous",
         };
+
+        console.log("[EmergencyResponse] New Report Object:", newReport);
 
         await db.reports.add(newReport);
         toastBlack("Report saved locally", { icon: icons.saved });
