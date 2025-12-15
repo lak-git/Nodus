@@ -1,73 +1,60 @@
-# React + TypeScript + Vite
+# Nodus : Disaster Response System
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Nodus is an offline-first disaster response platform built for natural disaster scenarios like landslides and floods. It combines a field responder Progressive Web App ("Nodus") and a command dashboard so first responders can log incidents in a complete connectivity blackout, store them safely on-device, and automatically sync them to headquarters once any network access returns—ensuring zero data loss across the entire response lifecycle.
 
-Currently, two official plugins are available:
+*Nodus stands for 'connection' in Latin. The very thing we strive for in the dire situation incident responders are in*
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## Features
 
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
+- **Offline-first Progressive Web App optimized for mobile field responders**
+- Online/offline login with persistent authentication and cached Supabase session
+- Secure on-device incident storage using IndexedDB (via Dexie) for full offline/airplane‑mode operation
+- Offline incident logging with GPS auto-capture and cached coordinates
+- Local pending queue with robust statuses (local/pending/syncing/synced/failed)
+- Automatic incident synchronization when connectivity returns, including image upload to Supabase Storage
+- Field responder home with:
+  - "Create Incident" flow
+  - Pending reports view for unsynced incidents
+  - "My Reports" list of synced incidents
+- Dashboard heatmap of incidents using Leaflet + leaflet.heat
+- Dashboard weather overlays (precipitation, clouds, temperature, wind) via OpenWeatherMap tiles
+- Severity-aware incident markers and color-coded density gradient on the map
+- Nearby incident alerts for responders with mini-map previews
+- Connectivity banner that clearly indicates online/offline state and sync behavior
+- Admin-ready Command Dashboard with:
+  - Live map visualization of active operations
+  - Split views for Active vs Resolved incidents
+  - Filter controls by incident type, severity, and date range
+  - Incident tables with selection and a detailed side panel
+  - Real-time updates from Supabase (Postgres changes)
+- Voice-assisted reporting:
+  - Speech-to-text capture for field notes
+  - Automatic extraction of incident type and severity from spoken descriptions
+- Photo capture with on-device compression before upload to save bandwidth
+- PWA install support with a custom install prompt hook
+- Role-aware data access and account approvals screen for admin workflows
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Technology Stack
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- React 19 with TypeScript
+- Vite 7
+- Tailwind CSS 4, shadcn/ui, and Radix 
+- Supabase
+- IndexedDB via Dexie 
+- React Router for routing between field and command experiences
+- React Leaflet, Leaflet, and leaflet.heat
+- OpenStreetMap and OpenWeatherMap
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Contributors
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- [Lakindu Perera (Technical/Team Lead)](https://linkedin.com/in/lakindu-h-perera) | [GitHub](https://github.com/lak-git)
+- [Stefan Shabbir (Developer)](https://linkedin.com/in/stefan-shabbir) | [GitHub](https://github.com/stefanshabbir)
+- [Manojram Ragu (Developer)](https://linkedin.com/in/manojram-ragu) | [GitHub](https://github.com/ManojramRagu)
+- [Saviskar Thiruchelvam (Developer)](https://linkedin.com/in/saviskar-thiruchelvam-44bb201b7) | [GitHub](https://github.com/Saviskar)
+- [Jahani Rathugamage (UI/UX | QA)](https://linkedin.com/in/jahanir) | [GitHub](https://github.com/jahanirathugamage)
